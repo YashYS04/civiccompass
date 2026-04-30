@@ -92,7 +92,7 @@ tests/
 ## Setup
 
 ```bash
-git clone https://github.com/your-org/civiccompass.git && cd civiccompass
+git clone https://github.com/YashYS04/civiccompass.git && cd civiccompass
 npm install
 cp .env.example .env.local         # Fill in your API keys
 npm run dev                        # http://localhost:3000
@@ -194,6 +194,20 @@ Built to WCAG 2.1 Level AA:
 2. **Graceful Degradation** — Missing Gemini key → mock mode with clear message. Missing Firebase config → logging silently skips. Missing Maps key → iframe shows error without crashing the app.
 3. **Minimal Footprint** — Entire source tree is under 50KB. No images, no bundled fonts (Google Fonts loaded via `next/font`), no CSS framework.
 4. **Accessibility First** — Every component is built for keyboard and screen reader users before visual styling is applied.
+
+---
+
+## Deployment
+
+Deployed on **Google Cloud Run** (`us-central1`):
+
+```bash
+gcloud run deploy civiccompass --source . --region us-central1 --allow-unauthenticated \
+  --set-env-vars "GEMINI_API_KEY=<key>,NEXT_PUBLIC_MAPS_API_KEY=<key>,NEXT_PUBLIC_FIREBASE_PROJECT_ID=<id>" \
+  --memory 512Mi --port 8080
+```
+
+Live URL: `https://civiccompass-922145000896.us-central1.run.app`
 
 ---
 
