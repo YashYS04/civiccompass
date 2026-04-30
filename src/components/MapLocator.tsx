@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
@@ -29,13 +29,14 @@ const MapLocator: React.FC = () => {
     setSearchQuery(pincode.trim());
   };
 
-  const mapSrc = searchQuery
+  /** Memoize computed URLs to avoid recalculation on unrelated state changes */
+  const mapSrc = useMemo(() => searchQuery
     ? `https://www.google.com/maps/embed/v1/search?key=${MAPS_KEY}&q=polling+booth+${encodeURIComponent(searchQuery)},India&zoom=14`
-    : '';
+    : '', [searchQuery]);
 
-  const externalMapLink = searchQuery
+  const externalMapLink = useMemo(() => searchQuery
     ? `https://www.google.com/maps/search/polling+booth+${encodeURIComponent(searchQuery)},India`
-    : '';
+    : '', [searchQuery]);
 
   return (
     <Card style={{ margin: '1rem 0' }}>
