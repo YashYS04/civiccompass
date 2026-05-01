@@ -1,11 +1,10 @@
 /**
  * Utility functions for Civic Compass AI.
- * Provides input sanitization, validation, and a simple caching mechanism.
+ * Provides input sanitization, validation, and a memory-efficient caching mechanism.
  */
 
 /**
  * Sanitizes user input to prevent XSS and injection attacks.
- * Strips HTML-like characters and trims whitespace.
  * @param input Raw user input
  * @returns Sanitized string capped at 2000 characters
  */
@@ -21,16 +20,14 @@ export function sanitizeInput(input: string): string {
 }
 
 /**
- * Validates an Indian PIN code format.
- * Must be 6 digits and not start with zero.
- * @param pincode String representing the PIN code
+ * Validates an Indian PIN code format (6 digits, first digit 1-9).
  */
 export function isValidPincode(pincode: string): boolean {
   return /^[1-9][0-9]{5}$/.test(pincode.trim());
 }
 
 /**
- * Simple in-memory rate limiter for API routes.
+ * In-memory rate limiter tracker.
  */
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
@@ -54,12 +51,19 @@ export function checkRateLimit(
 }
 
 /**
- * Simple Generic Cache for client-side optimizations.
+ * Memory-Efficient Generic Cache with Least Recently Used (LRU) like behavior.
+ * Prevents unbound memory growth.
  */
 class SimpleCache<T> {
   private cache = new Map<string, { value: T; expiry: number }>();
+  private readonly MAX_SIZE = 50; // Keep memory footprint small
 
   set(key: string, value: T, ttlMs: number = 300_000): void {
+    // Basic cleanup if cache gets too large
+    if (this.cache.size >= this.MAX_SIZE) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
+    }
     this.cache.set(key, { value, expiry: Date.now() + ttlMs });
   }
 

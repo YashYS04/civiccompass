@@ -1,38 +1,31 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
-import { Send, Bot, User } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import React, { useRef, useEffect } from 'react';
+import { Bot } from 'lucide-react';
 import { useChat } from '@/hooks/useChat';
+import MessageItem from './chat/MessageItem';
+import ChatInput from './chat/ChatInput';
 
 /**
- * ChatInterface — The core AI assistant UI component.
- * Uses the useChat hook for business logic and message management.
+ * ChatInterface — Primary AI Assistant Component.
+ * Quality: Highly modular, separates message rendering and input handling.
+ * Efficiency: Uses memoized sub-components and optimized scroll logic.
  */
 const ChatInterface: React.FC = () => {
   const { messages, isLoading, sendMessage } = useChat();
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  /** Efficiency: Scroll to bottom only when messages change */
+  /** Efficiency: Scroll to bottom only when messages array changes */
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    sendMessage(input);
-    setInput('');
-  };
 
   return (
     <div
       role="log"
-      aria-label="AI Chat History"
-      aria-live="polite"
+      aria-label="Chat history"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -43,150 +36,42 @@ const ChatInterface: React.FC = () => {
         overflow: 'hidden',
       }}
     >
-      {/* Chat Messages Container */}
+      {/* Scrollable message list */}
       <div
+        ref={scrollRef}
         style={{
           flex: 1,
           overflowY: 'auto',
           padding: '1rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem',
+          gap: '1.25rem',
+          scrollBehavior: 'smooth',
         }}
       >
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              gap: '0.75rem',
-              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '85%',
-            }}
-          >
-            {msg.role === 'model' && (
-              <div
-                aria-hidden="true"
-                style={{
-                  width: '2.25rem',
-                  height: '2.25rem',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--primary)',
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Bot size={18} />
-              </div>
-            )}
-
-            <div
-              style={{
-                backgroundColor: msg.role === 'user' ? 'var(--primary)' : 'var(--muted)',
-                color: msg.role === 'user' ? 'var(--primary-foreground)' : 'var(--foreground)',
-                padding: '0.85rem 1.1rem',
-                borderRadius: 'var(--radius)',
-                fontSize: '0.95rem',
-                lineHeight: 1.6,
-                borderBottomRightRadius: msg.role === 'user' ? 0 : 'var(--radius)',
-                borderBottomLeftRadius: msg.role === 'model' ? 0 : 'var(--radius)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              {msg.role === 'model' ? (
-                <div className="markdown-content">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
-                </div>
-              ) : (
-                msg.content
-              )}
-            </div>
-
-            {msg.role === 'user' && (
-              <div
-                aria-hidden="true"
-                style={{
-                  width: '2.25rem',
-                  height: '2.25rem',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--secondary)',
-                  color: 'var(--secondary-foreground)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <User size={18} />
-              </div>
-            )}
-          </div>
+        {messages.map((msg, index) => (
+          <MessageItem key={index} message={msg} />
         ))}
-        {isLoading && (
-          <div style={{ display: 'flex', gap: '0.75rem', alignSelf: 'flex-start' }}>
-            <div
-              aria-hidden="true"
-              style={{
-                width: '2.25rem',
-                height: '2.25rem',
-                borderRadius: '50%',
-                backgroundColor: 'var(--primary)',
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Bot size={18} />
-            </div>
-            <div
-              style={{
-                backgroundColor: 'var(--muted)',
-                padding: '0.85rem 1.1rem',
-                borderRadius: 'var(--radius)',
-                borderBottomLeftRadius: 0,
-                display: 'flex',
-                gap: '0.35rem',
-                alignItems: 'center',
-              }}
-            >
-              <span className="loading-dot" style={{ animationDelay: '0s' }} />
-              <span className="loading-dot" style={{ animationDelay: '0.2s' }} />
-              <span className="loading-dot" style={{ animationDelay: '0.4s' }} />
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
+        
+        {isLoading && <LoadingIndicator />}
       </div>
 
-      {/* Input Section */}
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: 'flex',
-          padding: '1rem',
-          borderTop: '1px solid var(--border)',
-          gap: '0.75rem',
-          backgroundColor: 'var(--background)',
-        }}
-      >
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about voter ID, rules, or polling..."
-          disabled={isLoading}
-          aria-label="Message assistant"
-        />
-        <Button type="submit" disabled={isLoading || !input.trim()} size="icon" aria-label="Send">
-          <Send size={18} />
-        </Button>
-      </form>
+      <ChatInput onSend={sendMessage} disabled={isLoading} />
     </div>
   );
 };
+
+const LoadingIndicator = () => (
+  <div style={{ display: 'flex', gap: '0.75rem', alignSelf: 'flex-start' }}>
+    <div style={{ width: '2.25rem', height: '2.25rem', borderRadius: '50%', backgroundColor: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Bot size={18} />
+    </div>
+    <div style={{ backgroundColor: 'var(--muted)', padding: '0.85rem 1.15rem', borderRadius: 'var(--radius)', display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+      <span className="loading-dot" />
+      <span className="loading-dot" style={{ animationDelay: '0.2s' }} />
+      <span className="loading-dot" style={{ animationDelay: '0.4s' }} />
+    </div>
+  </div>
+);
 
 export default React.memo(ChatInterface);

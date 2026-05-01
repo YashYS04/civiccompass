@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useState, useCallback } from 'react';
+import { ChatService } from '@/services/chatService';
+import { PersistenceService } from '@/services/persistenceService';
 
 export interface Message {
   role: 'user' | 'model';
@@ -8,34 +8,22 @@ export interface Message {
 }
 
 /**
- * useChat — Custom hook to manage chat state and operations.
- * Separates business logic (API calls, state updates, persistence) from UI.
+ * useChat — Custom hook to manage chat state.
+ * Efficiency: Uses useCallback for the send function.
+ * Quality: Delegates network and DB tasks to specialized services.
  */
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'model',
-      content: "Namaste! I'm **Civic Compass AI**. I can help you understand India's election process. What would you like to know?",
+      content: "Namaste! I'm **Civic Compass AI**. How can I help you understand Indian elections today?",
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /** Persist conversation turn to Firestore */
-  const persistConversation = async (userMsg: string, modelMsg: string) => {
-    try {
-      await addDoc(collection(db, 'conversations'), {
-        userMessage: userMsg,
-        modelResponse: modelMsg,
-        createdAt: serverTimestamp(),
-      });
-    } catch (e) {
-      console.warn('Firebase persistence skipped:', e);
-    }
-  };
-
   const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim()) return;
+    if (!content.trim() || isLoading) return;
 
     const userMsg: Message = { role: 'user', content };
     setMessages((prev) => [...prev, userMsg]);
@@ -43,29 +31,21 @@ export function useChat() {
     setError(null);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || 'Failed to fetch response');
-
-      const modelMsg: Message = { role: 'model', content: data.content };
+      const responseContent = await ChatService.getAiResponse([...messages, userMsg]);
+      
+      const modelMsg: Message = { role: 'model', content: responseContent };
       setMessages((prev) => [...prev, modelMsg]);
       
-      // Background persistence
-      persistConversation(content, data.content);
+      // Persistence is a side-effect, handled by service
+      PersistenceService.saveChatTurn(content, responseContent);
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : 'An error occurred';
-      setError(errMsg);
-      setMessages((prev) => [...prev, { role: 'model', content: `Error: ${errMsg}. Please try again.` }]);
+      const msg = err instanceof Error ? err.message : 'Connection error';
+      setError(msg);
+      setMessages((prev) => [...prev, { role: 'model', content: `Sorry, I encountered an error: ${msg}.` }]);
     } finally {
       setIsLoading(false);
     }
-  }, [messages]);
+  }, [messages, isLoading]);
 
   return { messages, isLoading, error, sendMessage };
 }

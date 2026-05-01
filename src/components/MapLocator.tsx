@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
-import { MapPin, ExternalLink } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { usePincode } from '@/hooks/usePincode';
+import MapFrame from './map/MapFrame';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_MAPS_API_KEY || '';
 
 /**
- * MapLocator — Visual interface for locating polling booths.
- * Uses the usePincode hook for search logic and validation.
+ * MapLocator — High-level container for the polling booth search.
+ * Structure: Uses custom hook for logic and MapFrame for display.
  */
 const MapLocator: React.FC = () => {
   const [localPin, setLocalPin] = useState('');
@@ -22,24 +23,26 @@ const MapLocator: React.FC = () => {
     search(localPin);
   };
 
-  const mapSrc = searchQuery
-    ? `https://www.google.com/maps/embed/v1/search?key=${MAPS_KEY}&q=polling+booth+${encodeURIComponent(searchQuery)},India&zoom=14`
-    : '';
-
-  const externalMapLink = searchQuery
-    ? `https://www.google.com/maps/search/polling+booth+${encodeURIComponent(searchQuery)},India`
-    : '';
+  /** Efficiency: Memoize computed URLs to avoid re-renders on keystrokes */
+  const { mapSrc, externalLink } = useMemo(() => {
+    if (!searchQuery) return { mapSrc: '', externalLink: '' };
+    const query = encodeURIComponent(searchQuery);
+    return {
+      mapSrc: `https://www.google.com/maps/embed/v1/search?key=${MAPS_KEY}&q=polling+booth+${query},India&zoom=14`,
+      externalLink: `https://www.google.com/maps/search/polling+booth+${query},India`
+    };
+  }, [searchQuery]);
 
   return (
     <Card style={{ margin: '1rem 0' }}>
       <CardHeader>
         <CardTitle style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <MapPin size={20} />
+          <MapPin size={20} color="var(--primary)" />
           Find Your Polling Booth
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
           <Input
             type="text"
             inputMode="numeric"
@@ -49,55 +52,33 @@ const MapLocator: React.FC = () => {
             aria-label="Enter PIN code"
             maxLength={6}
           />
-          <Button type="submit" variant="primary">Search</Button>
+          <Button type="submit">Search</Button>
         </form>
 
-        {error && (
-          <p role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '1rem' }}>
-            {error}
-          </p>
-        )}
+        {error && <ErrorMessage message={error} />}
 
         {searchQuery ? (
-          <div style={{ borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)' }}>
-            <div style={{ width: '100%', height: '350px', backgroundColor: 'var(--muted)' }}>
-              <iframe
-                title={`Polling stations near ${searchQuery}`}
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                loading="lazy"
-                allowFullScreen
-                src={mapSrc}
-              />
-            </div>
-            <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <strong style={{ display: 'block' }}>Polling Stations near {searchQuery}</strong>
-                <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>
-                  ECI standard polling hours: 7:00 AM – 6:00 PM
-                </p>
-              </div>
-              <a
-                href={externalMapLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem', color: 'var(--primary)' }}
-              >
-                Directions <ExternalLink size={14} />
-              </a>
-            </div>
-          </div>
+          <MapFrame pincode={searchQuery} src={mapSrc} externalLink={externalLink} />
         ) : (
-          <div style={{ textAlign: 'center', padding: '2rem', border: '2px dashed var(--border)', borderRadius: 'var(--radius)' }}>
-            <p style={{ color: 'var(--muted-foreground)', margin: 0 }}>
-              Enter your PIN above to see a live map of polling booths in your constituency.
-            </p>
-          </div>
+          <EmptyState />
         )}
       </CardContent>
     </Card>
   );
 };
+
+const ErrorMessage = ({ message }: { message: string }) => (
+  <p role="alert" style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '1rem', fontWeight: 500 }}>
+    {message}
+  </p>
+);
+
+const EmptyState = () => (
+  <div style={{ textAlign: 'center', padding: '2.5rem', border: '2px dashed var(--border)', borderRadius: 'var(--radius)' }}>
+    <p style={{ color: 'var(--muted-foreground)', margin: 0, fontSize: '0.9375rem' }}>
+      Enter your area PIN code to locate nearby polling booths on the map.
+    </p>
+  </div>
+);
 
 export default React.memo(MapLocator);
