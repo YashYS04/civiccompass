@@ -5,100 +5,33 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Send, Bot, User } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
-/** Shape of a single chat message */
-interface Message {
-  role: 'user' | 'model';
-  content: string;
-}
+import { useChat } from '@/hooks/useChat';
 
 /**
- * ChatInterface — The core AI assistant component.
- * Sends user messages to /api/chat and renders Gemini responses as markdown.
- * Persists conversations to Firestore for session tracking.
+ * ChatInterface — The core AI assistant UI component.
+ * Uses the useChat hook for business logic and message management.
  */
 const ChatInterface: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'model',
-      content:
-        "Namaste! I'm **Civic Compass AI**. I can help you understand India's election process, check your eligibility, or find your polling booth. What would you like to know?",
-    },
-  ]);
+  const { messages, isLoading, sendMessage } = useChat();
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  /** Scroll chat to latest message */
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
+  /** Efficiency: Scroll to bottom only when messages change */
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  /**
-   * Persists a message pair to Firestore.
-   * Wrapped in try/catch to gracefully handle missing Firebase config.
-   */
-  const saveToFirestore = async (userMsg: string, modelMsg: string) => {
-    try {
-      await addDoc(collection(db, 'conversations'), {
-        userMessage: userMsg,
-        modelResponse: modelMsg,
-        createdAt: serverTimestamp(),
-      });
-    } catch {
-      // Firebase may not be configured — fail silently in dev
-    }
-  };
-
-  /** Sends the user's message to the API and appends the response */
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-
-    const userMsg: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    sendMessage(input);
     setInput('');
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessages((prev) => [...prev, { role: 'model', content: data.content }]);
-        // Persist conversation turn to Firestore
-        saveToFirestore(input, data.content);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'model', content: 'Sorry, I encountered an error. Please try again.' },
-        ]);
-      }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'model', content: 'Network error. Please check your connection.' },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (
     <div
       role="log"
-      aria-label="AI Chat"
+      aria-label="AI Chat History"
       aria-live="polite"
       style={{
         display: 'flex',
@@ -110,7 +43,7 @@ const ChatInterface: React.FC = () => {
         overflow: 'hidden',
       }}
     >
-      {/* Chat Messages */}
+      {/* Chat Messages Container */}
       <div
         style={{
           flex: 1,
@@ -135,8 +68,8 @@ const ChatInterface: React.FC = () => {
               <div
                 aria-hidden="true"
                 style={{
-                  width: '2rem',
-                  height: '2rem',
+                  width: '2.25rem',
+                  height: '2.25rem',
                   borderRadius: '50%',
                   backgroundColor: 'var(--primary)',
                   color: 'white',
@@ -146,7 +79,7 @@ const ChatInterface: React.FC = () => {
                   flexShrink: 0,
                 }}
               >
-                <Bot size={16} />
+                <Bot size={18} />
               </div>
             )}
 
@@ -154,12 +87,13 @@ const ChatInterface: React.FC = () => {
               style={{
                 backgroundColor: msg.role === 'user' ? 'var(--primary)' : 'var(--muted)',
                 color: msg.role === 'user' ? 'var(--primary-foreground)' : 'var(--foreground)',
-                padding: '0.75rem 1rem',
+                padding: '0.85rem 1.1rem',
                 borderRadius: 'var(--radius)',
-                fontSize: '0.9375rem',
-                lineHeight: 1.5,
+                fontSize: '0.95rem',
+                lineHeight: 1.6,
                 borderBottomRightRadius: msg.role === 'user' ? 0 : 'var(--radius)',
                 borderBottomLeftRadius: msg.role === 'model' ? 0 : 'var(--radius)',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
               }}
             >
               {msg.role === 'model' ? (
@@ -175,8 +109,8 @@ const ChatInterface: React.FC = () => {
               <div
                 aria-hidden="true"
                 style={{
-                  width: '2rem',
-                  height: '2rem',
+                  width: '2.25rem',
+                  height: '2.25rem',
                   borderRadius: '50%',
                   backgroundColor: 'var(--secondary)',
                   color: 'var(--secondary-foreground)',
@@ -186,22 +120,18 @@ const ChatInterface: React.FC = () => {
                   flexShrink: 0,
                 }}
               >
-                <User size={16} />
+                <User size={18} />
               </div>
             )}
           </div>
         ))}
         {isLoading && (
-          <div
-            role="status"
-            aria-label="Loading response"
-            style={{ display: 'flex', gap: '0.75rem', alignSelf: 'flex-start' }}
-          >
+          <div style={{ display: 'flex', gap: '0.75rem', alignSelf: 'flex-start' }}>
             <div
               aria-hidden="true"
               style={{
-                width: '2rem',
-                height: '2rem',
+                width: '2.25rem',
+                height: '2.25rem',
                 borderRadius: '50%',
                 backgroundColor: 'var(--primary)',
                 color: 'white',
@@ -211,16 +141,16 @@ const ChatInterface: React.FC = () => {
                 flexShrink: 0,
               }}
             >
-              <Bot size={16} />
+              <Bot size={18} />
             </div>
             <div
               style={{
                 backgroundColor: 'var(--muted)',
-                padding: '0.75rem 1rem',
+                padding: '0.85rem 1.1rem',
                 borderRadius: 'var(--radius)',
                 borderBottomLeftRadius: 0,
                 display: 'flex',
-                gap: '0.25rem',
+                gap: '0.35rem',
                 alignItems: 'center',
               }}
             >
@@ -233,25 +163,25 @@ const ChatInterface: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
+      {/* Input Section */}
       <form
         onSubmit={handleSubmit}
         style={{
           display: 'flex',
           padding: '1rem',
           borderTop: '1px solid var(--border)',
-          gap: '0.5rem',
+          gap: '0.75rem',
           backgroundColor: 'var(--background)',
         }}
       >
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about voting, EVMs, eligibility..."
+          placeholder="Ask about voter ID, rules, or polling..."
           disabled={isLoading}
-          aria-label="Type your question"
+          aria-label="Message assistant"
         />
-        <Button type="submit" disabled={isLoading || !input.trim()} size="icon" aria-label="Send message">
+        <Button type="submit" disabled={isLoading || !input.trim()} size="icon" aria-label="Send">
           <Send size={18} />
         </Button>
       </form>
